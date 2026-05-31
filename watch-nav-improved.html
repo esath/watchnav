@@ -1,0 +1,515 @@
+<![CDATA[<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<title>Return</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #000;
+    --surface: #111;
+    --accent: #00e5a0;
+    --accent-dim: #00b07a;
+    --warn: #ff6b35;
+    --text: #f0f0ee;
+    --muted: #888;
+    --radius: 50%;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  /* Watch face is a perfect circle */
+  .watch-face {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .circle-clip {
+    width: 100vmin;
+    height: 100vmin;
+    border-radius: 50%;
+    overflow: hidden;
+    position: relative;
+    background: var(--bg);
+  }
+
+  /* SCREEN: IDLE (no fix yet) */
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.3s;
+  }
+  .screen.hidden { opacity: 0; pointer-events: none; }
+
+  /* Pulsing GPS ring */
+  .gps-ring {
+    width: 44vmin;
+    height: 44vmin;
+    border-radius: 50%;
+    border: 0.6vmin solid var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pulse-ring 1.8s ease-in-out infinite;
+    margin-bottom: 3vmin;
+    transition: border-color 0.3s ease;
+  }
+  @keyframes pulse-ring {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+  }
+  .gps-icon {
+    font-size: 9vmin;
+    color: var(--muted);
+    line-height: 1;
+    transition: color 0.3s ease;
+  }
+  .status-label {
+    font-size: 3.5vmin;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .accuracy-label {
+    margin-top: 1.5vmin;
+    font-size: 3vmin;
+    color: #555;
+    transition: color 0.3s ease;
+  }
+
+  /* SCREEN: READY — has GPS, waiting to mark */
+  #screen-ready .big-btn {
+    width: 52vmin;
+    height: 52vmin;
+    border-radius: 50%;
+    background: var(--accent);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1vmin;
+    transition: transform 0.12s, background-color 0.3s ease;
+    box-shadow: 0 0 0 0 var(--accent);
+  }
+  #screen-ready .big-btn:active {
+    transform: scale(0.93);
+    opacity: 0.85;
+  }
+  #screen-ready .btn-icon {
+    font-size: 10vmin;
+    color: #000;
+    line-height: 1;
+  }
+  #screen-ready .btn-label {
+    font-size: 3.2vmin;
+    font-weight: 700;
+    color: #000;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  #screen-ready .acc-hint {
+    position: absolute;
+    bottom: 14vmin;
+    font-size: 2.8vmin;
+    color: var(--muted);
+    transition: color 0.3s ease;
+  }
+
+  /* SCREEN: TRACKING — show distance */
+  #screen-track {
+    padding: 0;
+  }
+
+  .arc-container {
+    position: absolute;
+    inset: 0;
+  }
+  .arc-svg {
+    width: 100%; height: 100%;
+  }
+
+  .track-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .dist-label {
+    font-size: 2.8vmin;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 1vmin;
+  }
+  .dist-value {
+    font-size: 16vmin;
+    font-weight: 200;
+    line-height: 1;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    transition: color 0.4s;
+  }
+  .dist-value.near { color: var(--accent); }
+  .dist-value.far  { color: var(--text); }
+  .dist-unit {
+    font-size: 4vmin;
+    color: var(--muted);
+    margin-top: 0.5vmin;
+    letter-spacing: 0.06em;
+  }
+
+  .bearing-arrow {
+    margin-top: 3vmin;
+    font-size: 8vmin;
+    transition: transform 0.5s ease-out;
+    display: block;
+  }
+
+  /* Reset button — small at bottom */
+  .reset-btn {
+    position: absolute;
+    bottom: 11vmin;
+    width: 14vmin;
+    height: 14vmin;
+    border-radius: 50%;
+    background: #1a1a1a;
+    border: 0.4vmin solid #333;
+    color: var(--muted);
+    font-size: 5.5vmin;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+  }
+  .reset-btn:active { background: #2a2a2a; }
+
+  /* Accuracy dot top */
+  .acc-dot {
+    position: absolute;
+    top: 12vmin;
+    display: flex;
+    align-items: center;
+    gap: 1.2vmin;
+    font-size: 2.6vmin;
+    color: #555;
+  }
+  .dot {
+    width: 1.8vmin;
+    height: 1.8vmin;
+    border-radius: 50%;
+    background: var(--accent);
+    transition: background-color 0.3s ease;
+  }
+
+  /* Error screen */
+  #screen-error .err-icon { font-size: 10vmin; color: var(--warn); margin-bottom: 2vmin; }
+  #screen-error .err-msg { font-size: 3.2vmin; color: var(--muted); text-align: center; padding: 0 8vmin; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="watch-face">
+<div class="circle-clip">
+
+  <!-- SCREEN: Acquiring GPS -->
+  <div class="screen" id="screen-gps">
+    <div class="gps-ring">
+      <div class="gps-icon">◎</div>
+    </div>
+    <div class="status-label">Locating…</div>
+    <div class="accuracy-label" id="acq-acc"></div>
+  </div>
+
+  <!-- SCREEN: GPS ready, tap to mark -->
+  <div class="screen hidden" id="screen-ready">
+    <button class="big-btn" id="mark-btn" aria-label="Mark starting position">
+      <span class="btn-icon">📍</span>
+      <span class="btn-label">Mark</span>
+    </button>
+    <div class="acc-hint" id="ready-acc"></div>
+  </div>
+
+  <!-- SCREEN: Tracking distance -->
+  <div class="screen hidden" id="screen-track">
+    <div class="arc-container">
+      <svg class="arc-svg" viewBox="0 0 200 200" aria-hidden="true">
+        <circle cx="100" cy="100" r="88" fill="none" stroke="#1a1a1a" stroke-width="6"/>
+        <circle id="arc-prog" cx="100" cy="100" r="88" fill="none"
+          stroke="#00e5a0" stroke-width="6" stroke-linecap="round"
+          stroke-dasharray="553" stroke-dashoffset="553"
+          transform="rotate(-90 100 100)"
+          style="transition: stroke-dashoffset 0.6s ease, stroke 0.4s"/>
+      </svg>
+    </div>
+
+    <div class="acc-dot">
+      <div class="dot" id="acc-dot"></div>
+      <span id="acc-text"></span>
+    </div>
+
+    <div class="track-center">
+      <div class="dist-label">Distance</div>
+      <div class="dist-value" id="dist-val">—</div>
+      <div class="dist-unit" id="dist-unit">m</div>
+      <span class="bearing-arrow" id="bear-arrow" aria-hidden="true">↑</span>
+    </div>
+
+    <button class="reset-btn" id="reset-btn" aria-label="Reset to mark new position">↺</button>
+  </div>
+
+  <!-- SCREEN: Error -->
+  <div class="screen hidden" id="screen-error">
+    <div class="err-icon">⚠</div>
+    <div class="err-msg" id="err-msg">Location access denied. Enable GPS in watch settings.</div>
+  </div>
+
+</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const screens = ['gps','ready','track','error'];
+
+function show(name) {
+  screens.forEach(s => {
+    const el = $('screen-' + s);
+    el.classList.toggle('hidden', s !== name);
+  });
+}
+
+let origin = null;
+let currentPos = null;
+let compassHeading = 0;
+let watchId = null;
+
+// Load saved starting point from localStorage on startup
+const savedOrigin = localStorage.getItem('return_origin');
+if (savedOrigin) {
+  try {
+    origin = JSON.parse(savedOrigin);
+  } catch (e) {
+    console.error('Error loading saved origin:', e);
+  }
+}
+
+// Haversine distance in metres
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 +
+    Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// Bearing from current to origin (degrees, 0=N)
+function bearing(lat1, lon1, lat2, lon2) {
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
+  const x = Math.cos(lat1*Math.PI/180) * Math.sin(lat2*Math.PI/180)
+    - Math.sin(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.cos(dLon);
+  return (Math.atan2(y, x) * 180/Math.PI + 360) % 360;
+}
+
+function formatDist(m) {
+  if (m < 1000) return { val: Math.round(m), unit: 'm' };
+  return { val: (m / 1000).toFixed(2), unit: 'km' };
+}
+
+// arc: 0 (no fill) → 1 (full ring), max distance = 500m for full ring
+function updateArc(metres) {
+  const MAX = 500;
+  const frac = Math.min(metres / MAX, 1);
+  const circ = 2 * Math.PI * 88;
+  const offset = circ * (1 - frac);
+  const arc = $('arc-prog');
+  arc.style.strokeDashoffset = offset;
+  arc.style.stroke = metres < 30 ? '#00e5a0' : metres < 150 ? '#ffcc44' : '#ff6b35';
+}
+
+function updateArrow(bearingToOrigin) {
+  // rotate relative to device compass
+  const relBearing = (bearingToOrigin - compassHeading + 360) % 360;
+  const el = $('bear-arrow');
+  el.style.transform = `rotate(${relBearing}deg)`;
+  el.textContent = '↑';
+}
+
+function onPosition(pos) {
+  currentPos = pos;
+  const acc = Math.round(pos.coords.accuracy);
+
+  // Color-coding based on signal accuracy
+  // Strong (Excellent): <= 10m -> Emerald Green (#00e5a0)
+  // Fair (Usable): 11m to 25m -> Warm Yellow (#ffcc44)
+  // Weak (Unreliable): > 25m -> Safety Orange/Red (#ff6b35)
+  let colorHex = '#ff6b35';
+  if (acc <= 10) {
+    colorHex = '#00e5a0';
+  } else if (acc <= 25) {
+    colorHex = '#ffcc44';
+  }
+
+  if (!origin) {
+    // Still in acquire / ready phase
+    const acqAcc = $('acq-acc');
+    acqAcc.textContent = acc <= 20 ? `±${acc}m` : `±${acc}m — move to open sky`;
+    acqAcc.style.color = colorHex;
+
+    const readyAcc = $('ready-acc');
+    readyAcc.textContent = `±${acc}m`;
+    readyAcc.style.color = colorHex;
+
+    // Dynamically color-code the acquiring UI indicators
+    const gpsRing = document.querySelector('.gps-ring');
+    if (gpsRing) gpsRing.style.borderColor = colorHex;
+
+    const gpsIcon = document.querySelector('.gps-icon');
+    if (gpsIcon) gpsIcon.style.color = colorHex;
+
+    // Apply color directly to the Mark button
+    const markBtn = $('mark-btn');
+    markBtn.style.backgroundColor = colorHex;
+
+    show('ready');
+    return;
+  }
+
+  // Tracking mode
+  show('track');
+  const dist = haversine(
+    origin.latitude, origin.longitude,
+    pos.coords.latitude, pos.coords.longitude
+  );
+
+  const fmt = formatDist(dist);
+  const dv = $('dist-val');
+  dv.textContent = fmt.val;
+  $('dist-unit').textContent = fmt.unit;
+  dv.className = 'dist-value ' + (dist < 30 ? 'near' : 'far');
+
+  updateArc(dist);
+
+  const bear = bearing(
+    pos.coords.latitude, pos.coords.longitude,
+    origin.latitude, origin.longitude
+  );
+  updateArrow(bear);
+
+  // Color-coded Accuracy dot on track screen
+  const dot = $('acc-dot');
+  dot.style.backgroundColor = colorHex;
+  const accText = $('acc-text');
+  accText.textContent = `±${acc}m`;
+  accText.style.color = colorHex;
+}
+
+function onError(err) {
+  let msg = 'Location unavailable.';
+  if (err.code === 1) msg = 'Location access denied. Enable GPS in watch settings.';
+  if (err.code === 2) msg = 'GPS signal lost. Move to open sky.';
+  if (err.code === 3) msg = 'Location timed out. Retrying…';
+  $('err-msg').textContent = msg;
+  show('error');
+}
+
+// Device orientation for compass
+function initCompass() {
+  window.addEventListener('deviceorientation', e => {
+    if (e.webkitCompassHeading !== undefined) {
+      compassHeading = e.webkitCompassHeading;
+    } else if (e.alpha !== null) {
+      compassHeading = (360 - e.alpha) % 360;
+    }
+  }, true);
+}
+
+function startGPS() {
+  if (watchId) return; // Prevent duplicate instances
+  if (!navigator.geolocation) {
+    $('err-msg').textContent = 'GPS not available on this device.';
+    show('error');
+    return;
+  }
+  
+  // If we already have a saved starting point, we stay on 'gps' (Locating...) 
+  // until first position is fetched, then onPosition will automatically transit to 'track'.
+  show('gps');
+  
+  watchId = navigator.geolocation.watchPosition(onPosition, onError, {
+    enableHighAccuracy: true,
+    maximumAge: 1000,
+    timeout: 15000
+  });
+}
+
+function stopGPS() {
+  if (watchId) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
+}
+
+// Smart Geolocation Suspension via Page Visibility API
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    stopGPS();
+  } else {
+    startGPS();
+  }
+});
+
+$('mark-btn').addEventListener('click', () => {
+  if (!currentPos) return;
+  origin = {
+    latitude: currentPos.coords.latitude,
+    longitude: currentPos.coords.longitude
+  };
+  localStorage.setItem('return_origin', JSON.stringify(origin));
+  show('track');
+  // Immediately update with current pos
+  onPosition(currentPos);
+});
+
+$('reset-btn').addEventListener('click', () => {
+  origin = null;
+  localStorage.removeItem('return_origin');
+  show(currentPos ? 'ready' : 'gps');
+});
+
+// Retry from error screen (tap anywhere)
+$('screen-error').addEventListener('click', () => {
+  stopGPS();
+  origin = null;
+  currentPos = null;
+  startGPS();
+});
+
+initCompass();
+startGPS();
+</script>
+</body>
+</html>]]>
